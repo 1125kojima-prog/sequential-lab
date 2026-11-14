@@ -1,0 +1,6 @@
+node_modules/
+dist/
+*.local
+
+# 授業資料のPDFはリポジトリに入れない
+docs/lectures/
