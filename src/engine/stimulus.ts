@@ -45,3 +45,14 @@ export function withInputs(
     end: base.end,
   };
 }
+
+/** 多ビット入力を16進の値に変える刺激。names は上位ビットから。 */
+export function busSet(names: readonly string[], t: number, hex: string): [number, string, Level][] {
+  const v = parseInt(hex, 16);
+  return names.map((name, i) => [t, name, ((v >> (names.length - 1 - i)) & 1) as Level]);
+}
+
+/** 多ビット入力の初期値。 */
+export function busInit(names: readonly string[], hex: string): Record<string, Level> {
+  return Object.fromEntries(busSet(names, 0, hex).map(([, name, value]) => [name, value]));
+}
