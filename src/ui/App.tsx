@@ -15,6 +15,8 @@ import { loadSolved, saveSolved } from './progress';
 import { Schematic } from './Schematic';
 import { StepPanel } from './StepPanel';
 import { DesignGuide } from './DesignGuide';
+import { StateDiagram } from './StateDiagram';
+import { sceneDiagram } from '../view/statediagram';
 import { EDGE_COLOR, TimingChart, type ChartRow } from './TimingChart';
 import './app.css';
 
@@ -169,6 +171,9 @@ export function App() {
     return v;
   }, [trace, step, steps]);
   const changedNow = useMemo(() => new Set(step?.changed ?? []), [step]);
+  const stateDiagram = useMemo(() => sceneDiagram(scene), [scene]);
+  const stateNow = parseInt(scene.stateBits.map((b) => values[b] ?? 0).join(''), 2);
+  const stateFrom = step && step.kind === 'clock' ? parseInt(step.path[0]!, 2) : undefined;
 
   const rows = chartRows(scene, busView);
   const inputs = new Set(scene.circuit.inputs);
@@ -375,6 +380,14 @@ export function App() {
               edge={scene.edge}
               step={step}
             />
+            {stateDiagram && (
+              <details className="panel">
+                <summary>状態遷移図（全 {stateDiagram.next.length} 状態。行き先はエンジンで求めたもの。点線は「すぐ」＝クロックを待たずに移る）</summary>
+                <div className="schematic">
+                  <StateDiagram diagram={stateDiagram.diagram} current={stateNow} from={stateFrom} to={stateFrom === undefined ? undefined : stateDiagram.next[stateFrom]} />
+                </div>
+              </details>
+            )}
             <div className="below">
               <StepPanel
                 steps={steps}
