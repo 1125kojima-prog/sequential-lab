@@ -3,10 +3,13 @@ import { simulate } from '../engine/simulate';
 import { DEFAULT_DELAYS, type Delays, type SimOptions, type Trace } from '../engine/types';
 import { LECTURES } from '../problems/lectures';
 import { SCENES, sceneById, type Scene } from '../problems/scenes';
+import { buildDrawing } from '../schematic/layout';
+import { LAYOUTS } from '../schematic/layouts';
 import { operationTable } from '../view/chart';
 import { makeNamer } from '../view/label';
 import { buildSteps } from '../view/steps';
 import { OperationTable } from './OperationTable';
+import { Schematic } from './Schematic';
 import { StepPanel } from './StepPanel';
 import { EDGE_COLOR, TimingChart, type ChartRow } from './TimingChart';
 import './app.css';
@@ -127,6 +130,23 @@ export function App() {
     if (showAll) params.set('all', '1');
     window.history.replaceState(null, '', `#${params.toString()}`);
   }, [scene, idx, mode, zoom, busView, showAll]);
+
+  const drawing = useMemo(() => {
+    const spec = LAYOUTS[scene.circuit.id];
+    return spec ? buildDrawing(scene.circuit, spec) : undefined;
+  }, [scene]);
+  // 回路図に出す値：いまのステップが終わった時点（次のステップの直前）の値。
+  const values = useMemo(() => {
+    if (!trace) return {};
+    const until = step ? step.end : (steps[0]?.t ?? 0);
+    const v = { ...trace.initial };
+    for (const ch of trace.changes) {
+      if (ch.t > until || (ch.t === until && until < trace.end)) break;
+      v[ch.signal] = ch.value;
+    }
+    return v;
+  }, [trace, step, steps]);
+  const changedNow = useMemo(() => new Set(step?.changed ?? []), [step]);
 
   const rows = chartRows(scene, busView);
   const inputs = new Set(scene.circuit.inputs);
@@ -255,6 +275,7 @@ export function App() {
 
         {trace && (
           <>
+            {drawing && <Schematic drawing={drawing} namer={namer} values={values} changed={changedNow} />}
             <TimingChart
               trace={trace}
               rows={rows}
