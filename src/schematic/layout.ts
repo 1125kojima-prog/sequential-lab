@@ -1,38 +1,67 @@
 /**
  * 回路図の作図。素子の座標（LayoutSpec）と回路の接続から、描く線分・点・ラベルを求める。
- * UI には依存しない。
+ * UI には依存しない。接続そのものは回路（Circuit）から取るので、配置を変えても電気的な意味は変わらない。
  *
  * 配線の決め方（信号ごと）：
  * - 出どころ（FF の Q／Q̄、ゲートの出力、外部入力の端子）から縦の線（幹）を引く。
+ *   幹の x は出どころのすぐ横。spineX で離れた位置に動かせる（出どころからは横線でつなぐ）。
  * - 行き先の端子は、次のどちらかでつなぐ。
  *   - 横の母線（tracks で y を決めた線）へ縦に下ろす／上げる。
- *   - 端子の高さのまま、出どころの縦の線まで横に引く（tracks を決めていない信号、または taps に書いた端子）。
- * - outputs に書いた信号は、出どころから下へ線を伸ばして信号名を書く（スライドの「出力信号」）。
+ *   - 端子の高さのまま、幹まで横に引く（tracks を決めていない信号、または taps に書いた端子）。
+ * - outputs に書いた信号は幹を下へ伸ばして、outRight に書いた信号は右へ伸ばして、信号名を書く。
+ * - 同じ素子の同じ側で同じ信号につながる端子（J と K に 1 など）は、1本の縦線から分岐させる。
  */
 import { qnName } from '../engine/simulate';
 import type { Circuit, Conn, DataPinName, FlipFlop, GateOp, Ref } from '../engine/types';
 
 export type Pt = { x: number; y: number };
-export type Seg = { x1: number; y1: number; x2: number; y2: number };
+export type Seg = { x1: number; y1: number; x2: number; y2: number; dashed?: boolean };
+
+export type GateDir = 'right' | 'left' | 'down';
+
+/** 説明の文字。label を書くと、信号名の書式（view/label.ts）で描く。 */
+export type Note = { x: number; y: number; text?: string; label?: string; anchor?: 'start' | 'middle' | 'end'; color?: string };
+export type Frame = { x: number; y: number; w: number; h: number; color?: string };
+/** LED（負論理：信号が 0 のとき点灯）。x, y は電源の丸の中心。飾りで、シミュレーションはしない。 */
+export type Led = { x: number; y: number; signal: string };
 
 export type LayoutSpec = {
   width: number;
   height: number;
   /** FF の左上の座標。キーは FF の id。 */
   ffs: Record<string, [x: number, y: number]>;
-  /** ゲートの左上の座標。flip は左向き（入力が右、出力が左）。 */
-  gates?: Record<string, { at: [x: number, y: number]; flip?: boolean }>;
+  /** ゲートの左上の座標。dir は出力の向き（既定は右）。 */
+  gates?: Record<string, { at: [x: number, y: number]; dir?: GateDir }>;
   /** 外部入力と定数のラベルを置く x（既定 50）。 */
   portX?: number;
-  /** 外部入力の端子の位置を個別に決める（上から入る入力など）。 */
-  ports?: Record<string, [x: number, y: number]>;
+  /** 外部入力の端子の位置を個別に決める。3つ目はラベルの位置（既定は上）。 */
+  ports?: Record<string, [x: number, y: number, side?: 'above' | 'left']>;
   /** 横の母線の y。キーは信号名。定数は '$1'／'$0'。 */
   tracks?: Record<string, number>;
-  /** 母線ではなく、出どころの縦の線へ横につなぐ端子。例：'ff1.ck'、'rst.in0' */
+  /** 母線ではなく、幹へ横につなぐ端子。例：'ff1.ck'、'rst.in0' */
   taps?: string[];
+  /** 幹の x を出どころから離す。キーは信号名。 */
+  spineX?: Record<string, number>;
   /** 下へ引き出して名前を書く信号。 */
   outputs?: string[];
   outY?: number;
+  /** 右へ引き出して名前を書く信号と、その先の x。 */
+  outRight?: Record<string, number>;
+  /** 引き出した先に書く名前の上書き（書式は view/label.ts）。 */
+  outLabels?: Record<string, string>;
+  /** 信号に足す線（飾りの素子へつなぐ線）。 */
+  extra?: Record<string, [x1: number, y1: number, x2: number, y2: number][]>;
+  /** 点線で描く範囲（この枠に収まる線だけ）。 */
+  dashed?: { net: string; box: [x1: number, y1: number, x2: number, y2: number] }[];
+  /** 長い配線の省略記号を描く位置。 */
+  breaks?: [x: number, y: number][];
+  notes?: Note[];
+  frames?: Frame[];
+  leds?: Led[];
+  /** FF の名前（FF₀）を箱の上に書く。 */
+  ffNames?: boolean;
+  /** 端子名に添字を付ける（D₀、Q₀）。false なら D、Q。既定 true。 */
+  pinIndex?: boolean;
 };
 
 export type PinSide = 'left' | 'right' | 'top' | 'bottom';
@@ -51,14 +80,24 @@ export type PinDraw = {
 };
 
 export type FFDraw = { id: string; def: FlipFlop; x: number; y: number; w: number; h: number; pins: PinDraw[] };
-export type GateDraw = { id: string; op: GateOp; x: number; y: number; w: number; h: number; flip: boolean; inputs: number };
+export type GateDraw = {
+  id: string;
+  op: GateOp;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  dir: GateDir;
+  inputs: number;
+};
 
 export type NetLabel = {
   x: number;
   y: number;
   anchor: 'start' | 'middle' | 'end';
-  /** 信号名（表記は UI 側で決める）。定数は text。 */
+  /** 信号名（表記は UI 側で決める）。 */
   signal?: string;
+  /** 書式つきの文字列（定数、上書きした名前）。 */
   text?: string;
 };
 
@@ -73,7 +112,19 @@ export type NetDraw = {
   pins: Pt[];
 };
 
-export type Drawing = { width: number; height: number; ffs: FFDraw[]; gates: GateDraw[]; nets: NetDraw[] };
+export type Drawing = {
+  width: number;
+  height: number;
+  ffs: FFDraw[];
+  gates: GateDraw[];
+  nets: NetDraw[];
+  notes: Note[];
+  frames: Frame[];
+  leds: Led[];
+  breaks: Pt[];
+  ffNames: boolean;
+  pinIndex: boolean;
+};
 
 export const FF_W = 60;
 export const FF_H = 60;
@@ -87,9 +138,10 @@ function connRef(conn: Conn): Ref {
   return typeof conn === 'object' ? conn.from : conn;
 }
 
-export function gateSize(op: GateOp, inputs: number): { w: number; h: number; bubble: boolean } {
-  if (op === 'NOT') return { w: NOT_W, h: 16, bubble: true };
-  return { w: GATE_W, h: Math.max(24, inputs * 12), bubble: op === 'NAND' || op === 'NOR' };
+/** ゲートの大きさ（右向きのとき）。length は入力から出力の向き。 */
+export function gateSize(op: GateOp, inputs: number): { length: number; breadth: number; bubble: boolean } {
+  if (op === 'NOT') return { length: NOT_W, breadth: 16, bubble: true };
+  return { length: GATE_W, breadth: Math.max(24, inputs * 12), bubble: op === 'NAND' || op === 'NOR' };
 }
 
 type Pin = PinDraw & {
@@ -97,10 +149,12 @@ type Pin = PinDraw & {
   /** 出力端子か。 */
   drives: boolean;
   part: string;
+  net: string;
   /** 配線が縦に曲がる点の x（左右の端子はスタブの先）。 */
   ax: number;
   base: number;
   step: number;
+  /** -1 上へ、1 下へ、0 横のまま、2 上下の両方、3 値を書くだけ（定数）。 */
   dir: number;
 };
 
@@ -112,6 +166,7 @@ type Net = {
   sinks: Pin[];
   trackY?: number;
   output: boolean;
+  right?: number;
   constLabel?: boolean;
 };
 
@@ -122,11 +177,25 @@ export function buildDrawing(circuit: Circuit, spec: LayoutSpec): Drawing {
   const ffs: FFDraw[] = [];
   const gates: GateDraw[] = [];
 
-  const addPin = (part: string, name: string, side: PinSide, x: number, y: number, ref: Ref, drives: boolean, bubble: boolean, base: number, step: number): Pin => {
+  const addPin = (
+    part: string,
+    name: string,
+    side: PinSide,
+    x: number,
+    y: number,
+    ref: Ref,
+    drives: boolean,
+    bubble: boolean,
+    base: number,
+    step: number,
+  ): Pin => {
     const off = bubble ? BUBBLE : 0;
     const px = side === 'left' ? x - off : side === 'right' ? x + off : x;
     const py = side === 'top' ? y - off : side === 'bottom' ? y + off : y;
-    const pin: Pin = { key: `${part}.${name}`, name, side, x: px, y: py, bubble, connected: false, ref, drives, part, ax: px, base, step, dir: 0 };
+    const pin: Pin = {
+      key: `${part}.${name}`, name, side, x: px, y: py, bubble, connected: false,
+      ref, drives, part, net: '', ax: px, base, step, dir: 0,
+    };
     pins.push(pin);
     return pin;
   };
@@ -152,14 +221,19 @@ export function buildDrawing(circuit: Circuit, spec: LayoutSpec): Drawing {
       const place = spec.gates?.[comp.id];
       if (!place) throw new Error(`回路図にゲートの座標がありません: ${comp.id}（${circuit.id}）`);
       const [x, y] = place.at;
-      const flip = place.flip ?? false;
+      const dir = place.dir ?? 'right';
       const size = gateSize(comp.op, comp.inputs.length);
       const n = comp.inputs.length;
+      const w = dir === 'down' ? size.breadth : size.length;
+      const h = dir === 'down' ? size.length : size.breadth;
       comp.inputs.forEach((conn, i) => {
-        addPin(comp.id, `in${i}`, flip ? 'right' : 'left', flip ? x + size.w : x, y + (size.h * (i + 0.5)) / n, connRef(conn), false, false, 8, 6);
+        const along = (size.breadth * (i + 0.5)) / n;
+        if (dir === 'down') addPin(comp.id, `in${i}`, 'top', x + w - along, y, connRef(conn), false, false, 0, 0);
+        else addPin(comp.id, `in${i}`, dir === 'left' ? 'right' : 'left', dir === 'left' ? x + w : x, y + along, connRef(conn), false, false, 8, 6);
       });
-      addPin(comp.id, 'out', flip ? 'left' : 'right', flip ? x : x + size.w, y + size.h / 2, comp.id, true, size.bubble, 8, 6);
-      gates.push({ id: comp.id, op: comp.op, x, y, w: size.w, h: size.h, flip, inputs: n });
+      if (dir === 'down') addPin(comp.id, 'out', 'bottom', x + w / 2, y + h, comp.id, true, size.bubble, 0, 0);
+      else addPin(comp.id, 'out', dir === 'left' ? 'left' : 'right', dir === 'left' ? x : x + w, y + h / 2, comp.id, true, size.bubble, 8, 6);
+      gates.push({ id: comp.id, op: comp.op, x, y, w, h, dir, inputs: n });
     }
   }
 
@@ -176,12 +250,14 @@ export function buildDrawing(circuit: Circuit, spec: LayoutSpec): Drawing {
   for (const pin of pins) {
     if (typeof pin.ref === 'string') {
       const net = netOf(pin.ref, pin.ref);
+      pin.net = net.key;
       if (pin.drives) net.source = pin;
       else net.sinks.push(pin);
     } else {
       // 定数。母線を決めていなければ、端子ごとに値を書く。
       const shared = spec.tracks?.[`$${pin.ref}`] !== undefined;
       const net = netOf(shared ? `$${pin.ref}` : `$${pin.ref}@${pin.key}`, pin.ref);
+      pin.net = net.key;
       net.sinks.push(pin);
       net.constLabel = !shared;
     }
@@ -191,8 +267,13 @@ export function buildDrawing(circuit: Circuit, spec: LayoutSpec): Drawing {
     if (!net?.source) throw new Error(`出力に指定した信号に出どころがありません: ${signal}（${circuit.id}）`);
     net.output = true;
   }
+  for (const [signal, x] of Object.entries(spec.outRight ?? {})) {
+    const net = nets.get(signal);
+    if (!net?.source) throw new Error(`出力に指定した信号に出どころがありません: ${signal}（${circuit.id}）`);
+    net.right = x;
+  }
 
-  const active = [...nets.values()].filter((net) => net.sinks.length > 0 || net.output);
+  const active = [...nets.values()].filter((net) => net.sinks.length > 0 || net.output || net.right !== undefined);
   const tapped = (net: Net, pin: Pin): boolean => net.trackY === undefined || taps.has(pin.key);
 
   for (const net of active) {
@@ -205,7 +286,7 @@ export function buildDrawing(circuit: Circuit, spec: LayoutSpec): Drawing {
     // 外部入力、または母線のある定数。
     const explicit = typeof net.ref === 'string' ? spec.ports?.[net.ref] : undefined;
     if (explicit) {
-      net.port = { x: explicit[0], y: explicit[1], above: true };
+      net.port = { x: explicit[0], y: explicit[1], above: explicit[2] !== 'left' };
       net.trackY = track;
       continue;
     }
@@ -232,12 +313,13 @@ export function buildDrawing(circuit: Circuit, spec: LayoutSpec): Drawing {
   for (const net of active) {
     for (const pin of net.sinks) {
       pin.connected = true;
-      pin.dir = net.constLabel || tapped(net, pin) ? 0 : Math.sign(net.trackY! - pin.y);
+      pin.dir = net.constLabel ? 3 : tapped(net, pin) ? 0 : Math.sign(net.trackY! - pin.y);
     }
     if (net.source) {
       net.source.connected = true;
       const { lo, hi } = span(net, net.source.y);
-      net.source.dir = lo < net.source.y ? -1 : hi > net.source.y ? 1 : 0;
+      const moved = spec.spineX?.[net.key] !== undefined;
+      net.source.dir = moved ? 0 : lo < net.source.y && hi > net.source.y ? 2 : lo < net.source.y ? -1 : hi > net.source.y ? 1 : 0;
     }
   }
   const groups = new Map<string, Pin[]>();
@@ -247,14 +329,30 @@ export function buildDrawing(circuit: Circuit, spec: LayoutSpec): Drawing {
     groups.set(key, [...(groups.get(key) ?? []), pin]);
   }
   for (const group of groups.values()) {
-    const ups = group.filter((p) => p.dir < 0).sort((a, b) => a.y - b.y);
-    const downs = group.filter((p) => p.dir > 0).sort((a, b) => b.y - a.y);
+    const ups = group.filter((p) => p.dir === -1).sort((a, b) => a.y - b.y);
+    const downs = group.filter((p) => p.dir === 1).sort((a, b) => b.y - a.y);
+    const both = group.filter((p) => p.dir === 2);
+    // 同じ信号につながる端子は、同じ縦線を使う（1本を分岐させる）。
+    const rank = (list: Pin[]): Map<Pin, number> => {
+      const order: string[] = [];
+      const out = new Map<Pin, number>();
+      for (const p of list) {
+        if (!order.includes(p.net)) order.push(p.net);
+        out.set(p, order.indexOf(p.net));
+      }
+      return out;
+    };
+    const upRank = rank(ups);
+    const downRank = rank(downs);
+    const upCount = new Set(ups.map((p) => p.net)).size;
+    const downCount = new Set(downs.map((p) => p.net)).size;
     const clash = ups.some((u) => downs.some((d) => u.y > d.y));
-    const length = new Map<Pin, number>();
-    ups.forEach((p, i) => length.set(p, p.base + i * p.step));
-    downs.forEach((p, i) => length.set(p, p.base + (i + (clash ? ups.length : 0)) * p.step));
     for (const pin of group) {
-      const len = length.get(pin) ?? pin.base;
+      let len = pin.base;
+      if (pin.dir === -1) len = pin.base + upRank.get(pin)! * pin.step;
+      else if (pin.dir === 1) len = pin.base + (downRank.get(pin)! + (clash ? upCount : 0)) * pin.step;
+      else if (pin.dir === 2) len = pin.base + (upCount + downCount + both.indexOf(pin)) * pin.step;
+      else if (pin.dir === 3) len = pin.base + 2 * pin.step;
       pin.ax = pin.side === 'left' ? pin.x - len : pin.x + len;
     }
   }
@@ -273,8 +371,8 @@ export function buildDrawing(circuit: Circuit, spec: LayoutSpec): Drawing {
     if (net.constLabel) {
       const pin = net.sinks[0]!;
       const text = String(net.ref);
-      if (pin.side === 'left') labels.push({ x: pin.ax - 3, y: pin.y + 4, anchor: 'end', text });
-      else if (pin.side === 'right') labels.push({ x: pin.ax + 3, y: pin.y + 4, anchor: 'start', text });
+      if (pin.side === 'left') labels.push({ x: pin.ax - 4, y: pin.y + 4, anchor: 'end', text });
+      else if (pin.side === 'right') labels.push({ x: pin.ax + 4, y: pin.y + 4, anchor: 'start', text });
       else if (pin.side === 'bottom') {
         add(pin.x, pin.y, pin.x, pin.y + 8);
         labels.push({ x: pin.x, y: pin.y + 20, anchor: 'middle', text });
@@ -283,8 +381,10 @@ export function buildDrawing(circuit: Circuit, spec: LayoutSpec): Drawing {
         labels.push({ x: pin.x, y: pin.y - 11, anchor: 'middle', text });
       }
     } else {
-      const sx = net.source ? net.source.ax : net.port!.x;
+      const fromX = net.source ? net.source.ax : net.port!.x;
       const sy = net.source ? net.source.y : net.port!.y;
+      const sx = spec.spineX?.[net.key] ?? fromX;
+      add(fromX, sy, sx, sy);
       const { lo, hi } = span(net, sy);
       add(sx, lo, sx, hi);
       const trunkPins = net.sinks.filter((pin) => !tapped(net, pin));
@@ -296,7 +396,9 @@ export function buildDrawing(circuit: Circuit, spec: LayoutSpec): Drawing {
       for (const pin of net.sinks) {
         if (tapped(net, pin)) add(pin.ax, pin.y, sx, pin.y);
       }
+      const override = typeof net.ref === 'string' ? spec.outLabels?.[net.ref] : undefined;
       const name = typeof net.ref === 'string' ? { signal: net.ref } : { text: String(net.ref) };
+      const outName = override !== undefined ? { text: override } : name;
       if (net.port) {
         labels.push(
           net.port.above
@@ -304,10 +406,22 @@ export function buildDrawing(circuit: Circuit, spec: LayoutSpec): Drawing {
             : { x: net.port.x - 6, y: net.port.y + 4, anchor: 'end', ...name },
         );
       }
-      if (net.output) labels.push({ x: sx, y: outY + 16, anchor: 'middle', ...name });
+      if (net.output) labels.push({ x: sx, y: outY + 16, anchor: 'middle', ...outName });
+      if (net.right !== undefined) {
+        add(Math.min(fromX, sx), sy, net.right, sy);
+        labels.push({ x: net.right + 5, y: sy + 4, anchor: 'start', ...outName });
+      }
     }
+    for (const [x1, y1, x2, y2] of spec.extra?.[net.key] ?? []) add(x1, y1, x2, y2);
 
     const pieces = splitPieces(segs);
+    for (const rule of spec.dashed ?? []) {
+      if (rule.net !== net.key) continue;
+      const [bx1, by1, bx2, by2] = rule.box;
+      for (const s of pieces) {
+        if (s.x1 >= bx1 && s.x2 <= bx2 && s.y1 >= by1 && s.y2 <= by2) s.dashed = true;
+      }
+    }
     draws.push({
       key: net.key,
       ref: net.ref,
@@ -318,7 +432,19 @@ export function buildDrawing(circuit: Circuit, spec: LayoutSpec): Drawing {
     });
   }
 
-  return { width: spec.width, height: spec.height, ffs, gates, nets: draws };
+  return {
+    width: spec.width,
+    height: spec.height,
+    ffs,
+    gates,
+    nets: draws,
+    notes: spec.notes ?? [],
+    frames: spec.frames ?? [],
+    leds: spec.leds ?? [],
+    breaks: (spec.breaks ?? []).map(([x, y]) => ({ x, y })),
+    ffNames: spec.ffNames ?? false,
+    pinIndex: spec.pinIndex ?? true,
+  };
 }
 
 const norm = (s: Seg): Seg => (s.x1 < s.x2 || (s.x1 === s.x2 && s.y1 <= s.y2) ? s : { x1: s.x2, y1: s.y2, x2: s.x1, y2: s.y1 });
@@ -367,4 +493,3 @@ export function junctions(pieces: Seg[]): Pt[] {
   }
   return [...degree.values()].filter((e) => e.n >= 3).map((e) => e.p);
 }
-

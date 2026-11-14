@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { CIRCUITS } from '../../src/problems/circuits';
 import { SCENES } from '../../src/problems/scenes';
 import { buildDrawing, junctions, splitPieces, type Drawing, type Pt, type Seg } from '../../src/schematic/layout';
-import { LAYOUTS } from '../../src/schematic/layouts';
+import { LAYOUTS, layoutFor } from '../../src/schematic/layouts';
 
 const key = (p: Pt): string => `${p.x},${p.y}`;
 const ends = (s: Seg): [Pt, Pt] => [
@@ -14,7 +14,7 @@ const onSeg = (p: Pt, s: Seg): boolean =>
   s.x1 === s.x2 ? p.x === s.x1 && p.y >= s.y1 && p.y <= s.y2 : p.y === s.y1 && p.x >= s.x1 && p.x <= s.x2;
 
 function drawingOf(id: string): Drawing {
-  const circuit = CIRCUITS.find((c) => c.id === id);
+  const circuit = CIRCUITS.find((c) => c.id === id) ?? SCENES.find((s) => s.id === id)?.circuit;
   if (!circuit) throw new Error(`回路がありません: ${id}`);
   return buildDrawing(circuit, LAYOUTS[id]!);
 }
@@ -42,7 +42,7 @@ describe('線分の整理', () => {
 
 describe('回路図の配置', () => {
   it('第16〜20回の場面には、すべて回路図がある', () => {
-    const missing = SCENES.filter((s) => s.lecture <= 20 && !LAYOUTS[s.circuit.id]).map((s) => s.id);
+    const missing = SCENES.filter((s) => s.lecture <= 20 && !layoutFor(s.id, s.circuit.id)).map((s) => s.id);
     expect(missing).toEqual([]);
   });
 

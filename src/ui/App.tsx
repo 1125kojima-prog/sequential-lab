@@ -4,7 +4,7 @@ import { DEFAULT_DELAYS, type Delays, type SimOptions, type Trace } from '../eng
 import { LECTURES } from '../problems/lectures';
 import { SCENES, sceneById, type Scene } from '../problems/scenes';
 import { buildDrawing } from '../schematic/layout';
-import { LAYOUTS } from '../schematic/layouts';
+import { layoutFor } from '../schematic/layouts';
 import { operationTable } from '../view/chart';
 import { makeNamer } from '../view/label';
 import { buildSteps } from '../view/steps';
@@ -132,8 +132,8 @@ export function App() {
   }, [scene, idx, mode, zoom, busView, showAll]);
 
   const drawing = useMemo(() => {
-    const spec = LAYOUTS[scene.circuit.id];
-    return spec ? buildDrawing(scene.circuit, spec) : undefined;
+    const layout = layoutFor(scene.id, scene.circuit.id);
+    return layout ? buildDrawing(scene.circuit, layout.spec) : undefined;
   }, [scene]);
   // 回路図に出す値：いまのステップが終わった時点（次のステップの直前）の値。
   const values = useMemo(() => {
