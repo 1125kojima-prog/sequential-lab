@@ -69,14 +69,14 @@ describe('バス表示', () => {
 describe('動作表', () => {
   it('17-1：0回目は (000)、5回のクロックで (000) に戻る', () => {
     const { s, trace } = run('17-1', 'ideal');
-    const rows = operationTable(trace, s.stateBits, s.clock, s.edge);
+    const rows = operationTable(s.circuit, trace, s.stateBits, s.clock, s.edge).filter((r) => r.kind !== 'transient');
     expect(rows.slice(0, 7).map((r) => r.bits)).toEqual(['000', '001', '010', '011', '100', '000', '001']);
     expect(rows.map((r) => r.n)).toEqual(rows.map((_, i) => i));
   });
 
   it('17-2：遅延モードの初期設定（配線遅延 20ns）では (000) に戻らない', () => {
     const { s, trace } = run('17-2', 'delay');
-    const rows = operationTable(trace, s.stateBits, s.clock, s.edge);
+    const rows = operationTable(s.circuit, trace, s.stateBits, s.clock, s.edge).filter((r) => r.kind !== 'transient');
     expect(rows.slice(4, 8).map((r) => r.bits)).toEqual(['100', '001', '010', '011']);
   });
 });

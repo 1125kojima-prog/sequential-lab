@@ -35,7 +35,9 @@ describe('動作表の問題', () => {
   const table = (sceneId: string): string[] => {
     const scene = sceneById(sceneId)!;
     const trace = simulate(scene.circuit, scene.stimulus, { mode: 'ideal', init: scene.init });
-    return operationTable(trace, scene.stateBits, scene.clock, scene.edge).map((r) => r.bits);
+    return operationTable(scene.circuit, trace, scene.stateBits, scene.clock, scene.edge)
+      .filter((r) => r.kind !== 'transient')
+      .map((r) => r.bits);
   };
 
   it('16-2：7進アップカウンタの動作表（P=0〜7）がスライドと一致する', () => {

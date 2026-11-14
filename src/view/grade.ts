@@ -83,7 +83,10 @@ export function counterKind(
   edge: Trigger,
 ): CounterKind {
   const sync = circuit.components.every((comp) => comp.kind !== 'ff' || connRef(comp.clock) === clock);
-  const states = operationTable(trace, bits, clock, edge).map((row) => row.bits);
+  // 一瞬だけ現れる値は除く。外部 CLR でリセットされた後は、数え直しの行から続ける。
+  const states = operationTable(circuit, trace, bits, clock, edge)
+    .filter((row) => row.kind !== 'transient')
+    .map((row) => row.bits);
   // 動き始めた状態が、次に現れるまでのクロックの数。
   const start = states.findIndex((s, i) => i + 1 < states.length && states[i + 1] !== s);
   const again = start < 0 ? -1 : states.indexOf(states[start]!, start + 1);

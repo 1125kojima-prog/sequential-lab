@@ -122,7 +122,7 @@ export function App() {
     [scene, trace, mode, delays, wireModel],
   );
   const table = useMemo(
-    () => (trace ? operationTable(trace, scene.stateBits, scene.clock, scene.edge) : []),
+    () => (trace ? operationTable(scene.circuit, trace, scene.stateBits, scene.clock, scene.edge) : []),
     [scene, trace],
   );
   const idx = Math.min(Math.max(index, -1), steps.length - 1);
@@ -173,7 +173,6 @@ export function App() {
   const rows = chartRows(scene, busView);
   const inputs = new Set(scene.circuit.inputs);
   const reveal = !trace ? 0 : showAll ? trace.end : step ? step.end : (steps[0]?.t ?? trace.end);
-  const edgeCount = steps.slice(0, idx + 1).reduce((n, st) => st.edgeNo ?? n, 0);
   const edgeWord = scene.edge === 'rising' ? '立上り' : '立下り';
   const delayOn = mode === 'delay';
   const setWire = (id: string, v: number): void => setDelays((d) => ({ ...d, wire: { ...d.wire, [id]: v } }));
@@ -389,7 +388,7 @@ export function App() {
                 bits={scene.stateBits}
                 clock={scene.clock}
                 namer={namer}
-                current={showAll ? Infinity : edgeCount}
+                currentT={showAll ? Infinity : (step?.t ?? -1)}
               />
             </div>
           </>

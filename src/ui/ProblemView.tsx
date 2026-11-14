@@ -171,13 +171,17 @@ function TableView({ problem, onSolved, onExplain }: SubProps<TableProblem>) {
   const scene = sceneById(problem.sceneId)!;
   const trace = useIdeal(scene);
   const namer = useMemo(() => makeNamer(scene.labels), [scene]);
-  const rows = useMemo(() => operationTable(trace, scene.stateBits, scene.clock, scene.edge), [scene, trace]);
+  // 一瞬だけ現れる値の行は問題にしない（落ち着いた後の値を答える）。
+  const rows = useMemo(
+    () => operationTable(scene.circuit, trace, scene.stateBits, scene.clock, scene.edge).filter((row) => row.kind !== 'transient'),
+    [scene, trace],
+  );
   const width = scene.stateBits.length;
   const [answers, setAnswers] = useState<(Level | undefined)[][]>(() => rows.map(() => Array<Level | undefined>(width).fill(undefined)));
   const [marks, setMarks] = useState<Mark[][] | undefined>();
   const [revealed, setRevealed] = useState(false);
 
-  const expected = rows.map((row, n) => [...row.bits].map((ch) => ({ value: Number(ch) as Level, given: n === 0 })));
+  const expected = rows.map((row) => [...row.bits].map((ch) => ({ value: Number(ch) as Level, given: row.kind === 'reset' })));
   const check = (): void => {
     const result = expected.map((cells, n) => grade(cells, answers[n]!));
     setMarks(result);
@@ -193,7 +197,7 @@ function TableView({ problem, onSolved, onExplain }: SubProps<TableProblem>) {
       <SceneSchematic scene={scene} trace={trace} />
       <section className="panel">
         <p className="muted hint">
-          マスをクリックすると 空欄 → 0 → 1 と切り替わる。{namer.text(scene.clock)}=0 の行は最初の状態（与えてある）。
+          マスをクリックすると 空欄 → 0 → 1 と切り替わる。{namer.text(scene.clock)}=0 の行は最初の状態、または CLR でリセットした直後の状態（与えてある）。
         </p>
         <table className="op-table fill">
           <thead>
@@ -209,7 +213,7 @@ function TableView({ problem, onSolved, onExplain }: SubProps<TableProblem>) {
               <tr key={n}>
                 <td>{row.n}</td>
                 {[...row.bits].map((ch, i) =>
-                  n === 0 ? (
+                  row.kind === 'reset' ? (
                     <td key={i} className="given">
                       {ch}
                     </td>
