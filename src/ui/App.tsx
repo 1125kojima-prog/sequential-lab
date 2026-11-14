@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { simulate } from '../engine/simulate';
 import { DEFAULT_DELAYS, type Delays, type SimOptions, type Trace } from '../engine/types';
 import { LECTURES } from '../problems/lectures';
+import { PROBLEMS, problemById, type Problem } from '../problems/problems';
 import { SCENES, sceneById, type Scene } from '../problems/scenes';
 import { buildDrawing } from '../schematic/layout';
 import { layoutFor } from '../schematic/layouts';
@@ -9,6 +10,8 @@ import { operationTable } from '../view/chart';
 import { makeNamer } from '../view/label';
 import { buildSteps } from '../view/steps';
 import { OperationTable } from './OperationTable';
+import { ProblemView } from './ProblemView';
+import { loadSolved, saveSolved } from './progress';
 import { Schematic } from './Schematic';
 import { StepPanel } from './StepPanel';
 import { EDGE_COLOR, TimingChart, type ChartRow } from './TimingChart';
@@ -76,6 +79,17 @@ export function App() {
     initial.hash.has('bus') ? initial.hash.get('bus') === '1' : (initial.scene.busView ?? false),
   );
   const [showAll, setShowAll] = useState<boolean>(initial.hash.get('all') === '1');
+  const [tab, setTab] = useState<'sim' | 'problems'>(initial.hash.get('view') === 'problems' ? 'problems' : 'sim');
+  const [problem, setProblem] = useState<Problem>(() => problemById(initial.hash.get('problem') ?? '') ?? PROBLEMS[0]!);
+  const [solved, setSolved] = useState<Set<string>>(() => loadSolved());
+  const markSolved = (id: string): void => {
+    setSolved((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev).add(id);
+      saveSolved(next);
+      return next;
+    });
+  };
 
   const choose = (next: Scene): void => {
     setScene(next);
@@ -115,21 +129,25 @@ export function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       const tag = (e.target as HTMLElement | null)?.tagName;
-      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || tab !== 'sim') return;
       if (e.key === 'ArrowRight') setIndex((i) => Math.min(Math.max(i, -1) + 1, steps.length - 1));
       else if (e.key === 'ArrowLeft') setIndex((i) => Math.max(Math.min(i, steps.length - 1) - 1, -1));
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [steps.length]);
+  }, [steps.length, tab]);
 
   // 表示中の場面とステップを URL に残す（再読み込みしても同じ場所に戻る）。
   useEffect(() => {
     const params = new URLSearchParams({ scene: scene.id, step: String(idx), mode, zoom: String(zoom) });
     if (busView) params.set('bus', '1');
     if (showAll) params.set('all', '1');
+    if (tab === 'problems') {
+      params.set('view', 'problems');
+      params.set('problem', problem.id);
+    }
     window.history.replaceState(null, '', `#${params.toString()}`);
-  }, [scene, idx, mode, zoom, busView, showAll]);
+  }, [scene, idx, mode, zoom, busView, showAll, tab, problem]);
 
   const drawing = useMemo(() => {
     const layout = layoutFor(scene.id, scene.circuit.id);
@@ -160,7 +178,37 @@ export function App() {
     <div className="app">
       <aside className="sidebar">
         <h1>順序回路 学習ラボ</h1>
-        {LECTURES.map((lecture) => {
+        <div className="tabs">
+          <button className={tab === 'sim' ? 'current' : ''} onClick={() => setTab('sim')}>
+            シミュレーション
+          </button>
+          <button className={tab === 'problems' ? 'current' : ''} onClick={() => setTab('problems')}>
+            問題（{PROBLEMS.filter((p) => solved.has(p.id)).length}/{PROBLEMS.length}）
+          </button>
+        </div>
+        {tab === 'problems' &&
+          LECTURES.map((lecture) => {
+            const list = PROBLEMS.filter((p) => p.lecture === lecture.no);
+            if (list.length === 0) return null;
+            return (
+              <div key={lecture.no}>
+                <h2>
+                  第{lecture.no}回 {lecture.title}
+                </h2>
+                <ul>
+                  {list.map((p) => (
+                    <li key={p.id}>
+                      <button className={p.id === problem.id ? 'scene current' : 'scene'} onClick={() => setProblem(p)}>
+                        <span className={solved.has(p.id) ? 'check done' : 'check'}>{solved.has(p.id) ? '✓' : '・'}</span>
+                        {p.title}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        {tab === 'sim' && LECTURES.map((lecture) => {
           const list = SCENES.filter((s) => s.lecture === lecture.no);
           if (list.length === 0) return null;
           return (
@@ -182,7 +230,22 @@ export function App() {
         })}
       </aside>
 
-      <main className="main">
+      {tab === 'problems' && (
+        <main className="main">
+          <ProblemView
+            problem={problem}
+            solved={solved.has(problem.id)}
+            onSolved={() => markSolved(problem.id)}
+            onExplain={(sceneId) => {
+              const target = sceneById(sceneId);
+              if (target) choose(target);
+              setTab('sim');
+            }}
+          />
+        </main>
+      )}
+
+      {tab === 'sim' && <main className="main">
         <header>
           <h2>{scene.title}</h2>
           <p className="muted">
@@ -305,7 +368,7 @@ export function App() {
             </div>
           </>
         )}
-      </main>
+      </main>}
     </div>
   );
 }

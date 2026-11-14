@@ -307,3 +307,173 @@ button.scene.current {
 .schematic .legend {
   margin: 2px 0 0;
 }
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.tabs button {
+  flex: 1;
+  padding: 5px 4px;
+  font-size: 13px;
+}
+
+.tabs button.current {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+  font-weight: 600;
+}
+
+.check {
+  display: inline-block;
+  width: 16px;
+  color: #9ca3af;
+}
+
+.check.done {
+  color: #16a34a;
+  font-weight: 700;
+}
+
+.solved-badge {
+  margin-left: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #166534;
+  background: #dcfce7;
+  border-radius: 10px;
+  padding: 2px 8px;
+  vertical-align: middle;
+}
+
+.statement {
+  font-size: 15px;
+  line-height: 1.7;
+  margin: 8px 0 !important;
+}
+
+.hint {
+  margin: 8px 0 0;
+}
+
+.result {
+  font-weight: 600;
+  margin: 8px 0 2px;
+}
+
+.result.ok {
+  color: #166534;
+}
+
+.result.ng {
+  color: #b91c1c;
+}
+
+.bus-input {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+  text-align: center;
+  font: inherit;
+  font-size: 13px;
+  padding: 0;
+  outline: none;
+  text-transform: uppercase;
+}
+
+.op-table.fill {
+  margin: 8px 0 10px;
+}
+
+.op-table.fill td {
+  min-width: 34px;
+  height: 26px;
+}
+
+.op-table.fill td.given {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.op-table.fill td.cell {
+  cursor: pointer;
+  font-weight: 700;
+  color: #1d4ed8;
+}
+
+.op-table.fill td.cell.wrong {
+  background: #fecaca;
+}
+
+.op-table.fill td.cell.correct {
+  background: #dcfce7;
+}
+
+.op-table.fill td.cell.blank {
+  background: #fef3c7;
+}
+
+.quiz {
+  padding-left: 22px;
+  line-height: 2;
+}
+
+.quiz li {
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.quiz li.wrong {
+  background: #fee2e2;
+}
+
+.quiz li.correct {
+  background: #dcfce7;
+}
+
+.quiz li.blank {
+  background: #fef3c7;
+}
+
+.quiz .prompt {
+  display: block;
+  font-weight: 600;
+}
+
+.quiz .options {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+}
+
+.quiz input[type='number'] {
+  width: 90px;
+  font: inherit;
+}
+
+.mark {
+  margin-left: 10px;
+  font-weight: 700;
+}
+
+.mark.ok {
+  color: #16a34a;
+}
+
+.mark.ng {
+  color: #dc2626;
+}
+
+.essay {
+  line-height: 1.8;
+}
+
+details summary {
+  cursor: pointer;
+  font-weight: 600;
+}
