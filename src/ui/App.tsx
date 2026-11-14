@@ -14,6 +14,7 @@ import { ProblemView } from './ProblemView';
 import { loadSolved, saveSolved } from './progress';
 import { Schematic } from './Schematic';
 import { StepPanel } from './StepPanel';
+import { DesignGuide } from './DesignGuide';
 import { EDGE_COLOR, TimingChart, type ChartRow } from './TimingChart';
 import './app.css';
 
@@ -79,7 +80,10 @@ export function App() {
     initial.hash.has('bus') ? initial.hash.get('bus') === '1' : (initial.scene.busView ?? false),
   );
   const [showAll, setShowAll] = useState<boolean>(initial.hash.get('all') === '1');
-  const [tab, setTab] = useState<'sim' | 'problems'>(initial.hash.get('view') === 'problems' ? 'problems' : 'sim');
+  const [tab, setTab] = useState<'sim' | 'problems' | 'design'>(() => {
+    const view = initial.hash.get('view');
+    return view === 'problems' || view === 'design' ? view : 'sim';
+  });
   const [problem, setProblem] = useState<Problem>(() => problemById(initial.hash.get('problem') ?? '') ?? PROBLEMS[0]!);
   const [solved, setSolved] = useState<Set<string>>(() => loadSolved());
   const markSolved = (id: string): void => {
@@ -145,7 +149,7 @@ export function App() {
     if (tab === 'problems') {
       params.set('view', 'problems');
       params.set('problem', problem.id);
-    }
+    } else if (tab === 'design') params.set('view', 'design');
     window.history.replaceState(null, '', `#${params.toString()}`);
   }, [scene, idx, mode, zoom, busView, showAll, tab, problem]);
 
@@ -185,6 +189,9 @@ export function App() {
           <button className={tab === 'problems' ? 'current' : ''} onClick={() => setTab('problems')}>
             問題（{PROBLEMS.filter((p) => solved.has(p.id)).length}/{PROBLEMS.length}）
           </button>
+          <button className={tab === 'design' ? 'current' : ''} onClick={() => setTab('design')}>
+            設計
+          </button>
         </div>
         {tab === 'problems' &&
           LECTURES.map((lecture) => {
@@ -208,6 +215,14 @@ export function App() {
               </div>
             );
           })}
+        {tab === 'design' && (
+          <p className="muted side-note">
+            授業の「拡大入力要求表を使う設計方法」を、ステップ1から順に進める。作った回路は「シミュレーション」の画面で動かせる。
+          </p>
+        )}
+        {tab === 'sim' && !SCENES.includes(scene) && (
+          <p className="muted side-note">設計ガイドで作った回路を表示中。下の一覧から選ぶと授業の回路に戻る。</p>
+        )}
         {tab === 'sim' && LECTURES.map((lecture) => {
           const list = SCENES.filter((s) => s.lecture === lecture.no);
           if (list.length === 0) return null;
@@ -239,6 +254,17 @@ export function App() {
             onExplain={(sceneId) => {
               const target = sceneById(sceneId);
               if (target) choose(target);
+              setTab('sim');
+            }}
+          />
+        </main>
+      )}
+
+      {tab === 'design' && (
+        <main className="main">
+          <DesignGuide
+            onSimulate={(generated) => {
+              choose(generated);
               setTab('sim');
             }}
           />

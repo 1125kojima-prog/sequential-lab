@@ -477,3 +477,136 @@ details summary {
   cursor: pointer;
   font-weight: 600;
 }
+
+.side-note {
+  margin: 8px 2px;
+  line-height: 1.6;
+}
+
+.tabs {
+  flex-wrap: wrap;
+}
+
+.op-table.design {
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.op-table.design td,
+.op-table.design th {
+  padding: 2px 8px;
+}
+
+.op-table.design .sep {
+  border-left: 3px double #6b7280;
+}
+
+.op-table.design td.cell {
+  cursor: pointer;
+  min-width: 30px;
+  font-weight: 700;
+  color: #1d4ed8;
+}
+
+.op-table.design td.cell.wrong {
+  background: #fecaca;
+}
+
+.op-table.design td.cell.correct {
+  background: #dcfce7;
+}
+
+.op-table.design td.cell.blank {
+  background: #fef3c7;
+}
+
+.op-table.design select {
+  font: inherit;
+  font-size: 12px;
+}
+
+.rule {
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.code-input {
+  width: 56px;
+  font: inherit;
+  text-align: center;
+}
+
+.seq-input {
+  width: 220px;
+  font: inherit;
+}
+
+.expr-input {
+  width: 230px;
+  font: inherit;
+}
+
+.panel input[type='number'] {
+  width: 56px;
+  font: inherit;
+}
+
+.kmaps {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 12px;
+}
+
+.kmap {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.kmap h4 {
+  margin: 2px 0 6px;
+}
+
+.kmap-table {
+  border-collapse: collapse;
+  margin-bottom: 6px;
+}
+
+.kmap-table th {
+  font-weight: 600;
+  font-size: 12px;
+  padding: 2px 8px;
+  color: #374151;
+}
+
+.kmap-table th.corner {
+  font-size: 11px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.kmap-table td {
+  width: 46px;
+  height: 40px;
+  text-align: center;
+  border: 1px solid #9ca3af;
+  font-size: 15px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.kmap-table td.selected {
+  background: #fde68a;
+}
+
+.equations {
+  line-height: 1.9;
+  font-size: 15px;
+  margin: 6px 0;
+}
+
+.tabs button {
+  font-size: 12px;
+  white-space: nowrap;
+  flex: 0 1 auto;
+}
