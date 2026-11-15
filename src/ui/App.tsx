@@ -15,6 +15,7 @@ import { loadSolved, saveSolved } from './progress';
 import { Schematic } from './Schematic';
 import { StepPanel } from './StepPanel';
 import { DesignGuide } from './DesignGuide';
+import { CpuCycle } from './CpuCycle';
 import { StateDiagram } from './StateDiagram';
 import { sceneDiagram } from '../view/statediagram';
 import { EDGE_COLOR, TimingChart, type ChartRow } from './TimingChart';
@@ -82,10 +83,11 @@ export function App() {
     initial.hash.has('bus') ? initial.hash.get('bus') === '1' : (initial.scene.busView ?? false),
   );
   const [showAll, setShowAll] = useState<boolean>(initial.hash.get('all') === '1');
-  const [tab, setTab] = useState<'sim' | 'problems' | 'design'>(() => {
+  const [tab, setTab] = useState<'sim' | 'problems' | 'design' | 'cpu'>(() => {
     const view = initial.hash.get('view');
-    return view === 'problems' || view === 'design' ? view : 'sim';
+    return view === 'problems' || view === 'design' || view === 'cpu' ? view : 'sim';
   });
+  const [cpuIndex, setCpuIndex] = useState<number>(() => Math.max(0, Number(initial.hash.get('cpu') ?? 0) || 0));
   const [problem, setProblem] = useState<Problem>(() => problemById(initial.hash.get('problem') ?? '') ?? PROBLEMS[0]!);
   const [solved, setSolved] = useState<Set<string>>(() => loadSolved());
   const markSolved = (id: string): void => {
@@ -152,8 +154,12 @@ export function App() {
       params.set('view', 'problems');
       params.set('problem', problem.id);
     } else if (tab === 'design') params.set('view', 'design');
+    else if (tab === 'cpu') {
+      params.set('view', 'cpu');
+      params.set('cpu', String(cpuIndex));
+    }
     window.history.replaceState(null, '', `#${params.toString()}`);
-  }, [scene, idx, mode, zoom, busView, showAll, tab, problem]);
+  }, [scene, idx, mode, zoom, busView, showAll, tab, problem, cpuIndex]);
 
   const drawing = useMemo(() => {
     const layout = layoutFor(scene.id, scene.circuit.id);
@@ -196,6 +202,9 @@ export function App() {
           <button className={tab === 'design' ? 'current' : ''} onClick={() => setTab('design')}>
             設計
           </button>
+          <button className={tab === 'cpu' ? 'current' : ''} onClick={() => setTab('cpu')}>
+            計算機
+          </button>
         </div>
         {tab === 'problems' &&
           LECTURES.map((lecture) => {
@@ -222,6 +231,11 @@ export function App() {
         {tab === 'design' && (
           <p className="muted side-note">
             授業の「拡大入力要求表を使う設計方法」を、ステップ1から順に進める。作った回路は「シミュレーション」の画面で動かせる。
+          </p>
+        )}
+        {tab === 'cpu' && (
+          <p className="muted side-note">
+            第22回 p.11〜24。PC、命令レジスタ、ALUラッチ、汎用レジスタ、メインメモリを並べ、命令フェッチ → 命令デコード → 実効アドレス計算 → オペランド読み出し → 命令実行 を1ステップずつ進める。
           </p>
         )}
         {tab === 'sim' && !SCENES.includes(scene) && (
@@ -272,6 +286,12 @@ export function App() {
               setTab('sim');
             }}
           />
+        </main>
+      )}
+
+      {tab === 'cpu' && (
+        <main className="main">
+          <CpuCycle index={cpuIndex} onMove={setCpuIndex} />
         </main>
       )}
 

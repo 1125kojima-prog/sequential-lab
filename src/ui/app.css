@@ -632,3 +632,69 @@ details summary {
   padding: 2px 6px;
   white-space: nowrap;
 }
+
+/* 命令実行サイクル */
+.tabs {
+  flex-wrap: wrap;
+}
+
+.cpu-stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 4px;
+  counter-reset: stage;
+}
+
+.cpu-stages li {
+  counter-increment: stage;
+  padding: 3px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.cpu-stages li::before {
+  content: counter(stage) '. ';
+}
+
+.cpu-stages li + li {
+  position: relative;
+}
+
+.cpu-stages li.current {
+  background: #7c3aed;
+  border-color: #7c3aed;
+  color: #fff;
+  font-weight: 600;
+}
+
+.cpu-phases {
+  margin: 4px 0;
+  padding-left: 20px;
+  color: #6b7280;
+}
+
+.cpu-phases li {
+  margin: 4px 0;
+}
+
+.cpu-phases li.current {
+  color: #7c3aed;
+}
+
+.cpu-defs dl {
+  margin: 4px 0;
+}
+
+.cpu-defs dt {
+  font-family: Consolas, monospace;
+  font-weight: 700;
+}
+
+.cpu-defs dd {
+  margin: 0 0 6px 14px;
+}
