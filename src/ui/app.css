@@ -698,3 +698,30 @@ details summary {
 .cpu-defs dd {
   margin: 0 0 6px 14px;
 }
+
+/* スマホなど狭い画面：一覧を上、本文を下に並べる。図や表は横にスクロールする。 */
+@media (max-width: 760px) {
+  .app {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sidebar {
+    position: static;
+    height: auto;
+    max-height: 42vh;
+    border-right: none;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .main {
+    padding: 10px 10px 32px;
+  }
+
+  .below {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .panel {
+    overflow-x: auto;
+  }
+}
