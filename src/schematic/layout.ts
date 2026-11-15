@@ -42,6 +42,12 @@ export type LayoutSpec = {
   taps?: string[];
   /** 幹の x を出どころから離す。キーは信号名。 */
   spineX?: Record<string, number>;
+  /**
+   * 縦の母線（第21回 p.8 の形）。出どころから横に x まで引き、縦に伸ばして、行き先の端子は横につなぐ。
+   * lane と y を書くと、出どころから lane まで横、lane を y まで縦、y で x まで横に戻ってから縦に伸ばす
+   * （FF の Q を下に回して左の母線へ戻す線）。
+   */
+  buses?: Record<string, { x: number; lane?: number; y?: number }>;
   /** 下へ引き出して名前を書く信号。 */
   outputs?: string[];
   outY?: number;
@@ -275,6 +281,7 @@ export function buildDrawing(circuit: Circuit, spec: LayoutSpec): Drawing {
 
   const active = [...nets.values()].filter((net) => net.sinks.length > 0 || net.output || net.right !== undefined);
   const tapped = (net: Net, pin: Pin): boolean => net.trackY === undefined || taps.has(pin.key);
+  const busOf = (net: Net): { x: number; lane?: number; y?: number } | undefined => (net.source ? spec.buses?.[net.key] : undefined);
 
   for (const net of active) {
     const track = spec.tracks?.[net.key];
@@ -318,7 +325,7 @@ export function buildDrawing(circuit: Circuit, spec: LayoutSpec): Drawing {
     if (net.source) {
       net.source.connected = true;
       const { lo, hi } = span(net, net.source.y);
-      const moved = spec.spineX?.[net.key] !== undefined;
+      const moved = spec.spineX?.[net.key] !== undefined || busOf(net) !== undefined;
       net.source.dir = moved ? 0 : lo < net.source.y && hi > net.source.y ? 2 : lo < net.source.y ? -1 : hi > net.source.y ? 1 : 0;
     }
   }
@@ -368,7 +375,22 @@ export function buildDrawing(circuit: Circuit, spec: LayoutSpec): Drawing {
     const members = [...net.sinks, ...(net.source ? [net.source] : [])];
     for (const pin of members) add(pin.x, pin.y, pin.ax, pin.y);
 
-    if (net.constLabel) {
+    const bus = busOf(net);
+    if (bus) {
+      const src = net.source!;
+      const ys = net.sinks.map((pin) => pin.y);
+      if (bus.lane !== undefined && bus.y !== undefined) {
+        add(src.ax, src.y, bus.lane, src.y);
+        add(bus.lane, src.y, bus.lane, bus.y);
+        add(bus.lane, bus.y, bus.x, bus.y);
+        ys.push(bus.y);
+      } else {
+        add(src.ax, src.y, bus.x, src.y);
+        ys.push(src.y);
+      }
+      add(bus.x, Math.min(...ys), bus.x, Math.max(...ys));
+      for (const pin of net.sinks) add(pin.ax, pin.y, bus.x, pin.y);
+    } else if (net.constLabel) {
       const pin = net.sinks[0]!;
       const text = String(net.ref);
       if (pin.side === 'left') labels.push({ x: pin.ax - 4, y: pin.y + 4, anchor: 'end', text });

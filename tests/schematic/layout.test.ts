@@ -3,7 +3,33 @@ import { describe, expect, it } from 'vitest';
 import { CIRCUITS } from '../../src/problems/circuits';
 import { SCENES } from '../../src/problems/scenes';
 import { buildDrawing, junctions, splitPieces, type Drawing, type Pt, type Seg } from '../../src/schematic/layout';
-import { LAYOUTS, layoutFor } from '../../src/schematic/layouts';
+import { LAYOUTS, layoutFor, specFor } from '../../src/schematic/layouts';
+import { autoLayout } from '../../src/schematic/auto';
+import { counterSpec, encode, targets, type FFKind } from '../../src/design/fsm';
+import { generateCircuit } from '../../src/design/generate';
+import { minimize } from '../../src/design/minimize';
+import { PRESETS } from '../../src/design/presets';
+import type { Circuit } from '../../src/engine/types';
+
+const KINDS: FFKind[] = ['D', 'T', 'JK', 'RS'];
+
+/** 設計ガイドで作れる回路（カウンタ 2〜16進のアップ／ダウン、授業の設計例）を、4種の FF で。 */
+function designed(): Circuit[] {
+  const specs = [
+    ...Array.from({ length: 15 }, (_, k) => counterSpec(k + 2, 'up')),
+    ...Array.from({ length: 15 }, (_, k) => counterSpec(k + 2, 'down')),
+    ...PRESETS.map((p) => p.spec),
+  ];
+  return specs.flatMap((spec) => {
+    const enc = encode(spec);
+    return KINDS.map((kind) => {
+      const solutions = targets(enc, kind).map((target) => ({ target, terms: minimize(target.table, enc.vars.length) }));
+      return generateCircuit(enc, kind, solutions).circuit;
+    });
+  });
+}
+const DESIGNED = designed();
+const AUTO: Circuit[] = [CIRCUITS.find((c) => c.id === '21-vending')!, ...DESIGNED];
 
 const key = (p: Pt): string => `${p.x},${p.y}`;
 const ends = (s: Seg): [Pt, Pt] => [
@@ -14,6 +40,8 @@ const onSeg = (p: Pt, s: Seg): boolean =>
   s.x1 === s.x2 ? p.x === s.x1 && p.y >= s.y1 && p.y <= s.y2 : p.y === s.y1 && p.x >= s.x1 && p.x <= s.x2;
 
 function drawingOf(id: string): Drawing {
+  const auto = AUTO.find((c) => c.id === id);
+  if (auto && !LAYOUTS[id]) return buildDrawing(auto, autoLayout(auto)!);
   const circuit = CIRCUITS.find((c) => c.id === id) ?? SCENES.find((s) => s.id === id)?.circuit;
   if (!circuit) throw new Error(`回路がありません: ${id}`);
   return buildDrawing(circuit, LAYOUTS[id]!);
@@ -46,7 +74,15 @@ describe('回路図の配置', () => {
     expect(missing).toEqual([]);
   });
 
-  describe.each(Object.keys(LAYOUTS))('%s', (id) => {
+  it('第21回の回路と、設計ガイドで作れる回路は、すべて自動で配置できる', () => {
+    const missing = AUTO.filter((c) => !autoLayout(c)).map((c) => c.id);
+    expect(missing).toEqual([]);
+    expect(specFor('21-vending', AUTO[0]!)?.auto).toBe(true);
+    // 授業の回路は手書きの配置を優先する。
+    expect(specFor('16-5', CIRCUITS.find((c) => c.id === '16-5')!)?.auto).toBe(false);
+  });
+
+  describe.each([...Object.keys(LAYOUTS), ...AUTO.map((c) => c.id).filter((id) => !LAYOUTS[id])])('%s', (id) => {
     const drawing = drawingOf(id);
     const boxes = [...drawing.ffs, ...drawing.gates].map((b) => ({ id: b.id, x: b.x, y: b.y, w: b.w, h: b.h }));
 

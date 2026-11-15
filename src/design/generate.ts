@@ -29,7 +29,9 @@ function buildSum(name: string, terms: readonly Term[], literal: (index: number,
     return id;
   });
   if (products.length === 1) return products[0]!;
-  out.push(gate(name, 'OR', ...products));
+  // リテラル1つだけの積項を OR の先頭の入力にする（回路図で、その線が AND の列に当たらないように）。
+  const literals = products.filter((p, k) => p !== (terms.length === 1 ? name : `${name}_t${k + 1}`));
+  out.push(gate(name, 'OR', ...literals, ...products.filter((p) => !literals.includes(p))));
   return name;
 }
 
@@ -152,7 +154,7 @@ export function generateScene(enc: Encoded, kind: FFKind, solutions: readonly So
     labels,
     delays: { ff: 8, gate: 5 },
     note: counter
-      ? '設計ガイドで求めた論理式から作った回路。回路図は表示しない（自動配置はしていない）。'
-      : '設計ガイドで求めた論理式から作った回路。入力 X′ は D-FF でラッチしてから使う（授業の回路と同じ形）。回路図は表示しない。',
+      ? '設計ガイドで求めた論理式から作った回路。回路図は自動で配置している。'
+      : '設計ガイドで求めた論理式から作った回路。入力 X′ は D-FF でラッチしてから使う（授業の回路と同じ形）。回路図は自動で配置している。',
   };
 }

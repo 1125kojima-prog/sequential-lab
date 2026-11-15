@@ -4,7 +4,7 @@ import type { Level, Trace } from '../engine/types';
 import { CELL_NS, type EssayProblem, type Problem, type QuizProblem, type TableProblem, type TimingProblem } from '../problems/problems';
 import { sceneById, type Scene } from '../problems/scenes';
 import { buildDrawing } from '../schematic/layout';
-import { layoutFor } from '../schematic/layouts';
+import { specFor } from '../schematic/layouts';
 import { operationTable } from '../view/chart';
 import { allCorrect, busCells, grade, signalCells, type Mark } from '../view/grade';
 import { makeNamer } from '../view/label';
@@ -27,7 +27,7 @@ function useIdeal(scene: Scene): Trace {
 
 /** 場面の回路図（初期状態の値で色を付ける）。 */
 function SceneSchematic({ scene, trace }: { scene: Scene; trace?: Trace }) {
-  const layout = layoutFor(scene.id, scene.circuit.id);
+  const layout = specFor(scene.id, scene.circuit);
   const drawing = useMemo(() => (layout ? buildDrawing(scene.circuit, layout.spec) : undefined), [scene, layout]);
   const namer = useMemo(() => makeNamer(scene.labels), [scene]);
   if (!drawing) return null;

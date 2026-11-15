@@ -4,6 +4,8 @@
  * - 母線：定数 1 は上。下は上から Cₚ、CLR の順。
  * - 座標の目安：FF は 60×60、上辺 y=90（下辺 150）、間隔 120。
  */
+import type { Circuit } from '../engine/types';
+import { autoLayout } from './auto';
 import type { Frame, LayoutSpec, Note } from './layout';
 
 const FY = 90;
@@ -313,4 +315,12 @@ export function layoutFor(sceneId: string, circuitId: string): { key: string; sp
   const key = LAYOUTS[sceneId] ? sceneId : circuitId;
   const spec = LAYOUTS[key];
   return spec ? { key, spec } : undefined;
+}
+
+/** 回路図の配置：授業スライドに合わせた手書きの配置があればそれ、なければ自動配置（第21回、設計ガイドの回路）。 */
+export function specFor(sceneId: string, circuit: Circuit): { key: string; spec: LayoutSpec; auto: boolean } | undefined {
+  const hand = layoutFor(sceneId, circuit.id);
+  if (hand) return { ...hand, auto: false };
+  const spec = autoLayout(circuit);
+  return spec ? { key: circuit.id, spec, auto: true } : undefined;
 }
